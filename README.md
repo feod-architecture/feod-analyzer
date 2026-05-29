@@ -9,9 +9,9 @@ The tool supports the canonical FEOD levels: `app`, `pages`, `modules`, `common`
 Use the package as a CLI:
 
 ```bash
-bunx @feod-architecture/analyzer analyze ./src --out ./dist/feod --formats html,json
-npx @feod-architecture/analyzer analyze ./src --out ./dist/feod --formats html,json
-pnpm dlx @feod-architecture/analyzer analyze ./src --out ./dist/feod --formats html,json
+bunx @feod/analyzer analyze ./src --out ./dist/feod --formats html,json
+npx @feod/analyzer analyze ./src --out ./dist/feod --formats html,json
+pnpm dlx @feod/analyzer analyze ./src --out ./dist/feod --formats html,json
 ```
 
 For local development from the repository:

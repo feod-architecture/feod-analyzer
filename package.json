@@ -1,5 +1,5 @@
 {
-  "name": "@feod-architecture/analyzer",
+  "name": "@feod/analyzer",
   "version": "0.1.0",
   "type": "module",
   "description": "FEOD architecture analyzer CLI with JSON and React report output",
