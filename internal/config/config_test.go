@@ -33,6 +33,50 @@ func TestLoadTsconfigAliases(t *testing.T) {
 	}
 }
 
+func TestLoadDoesNotLeakTsconfigAliasesBetweenProjects(t *testing.T) {
+	first := t.TempDir()
+	if err := os.WriteFile(filepath.Join(first, "tsconfig.json"), []byte(`{
+  "compilerOptions": {
+    "paths": {
+      "~/*": ["app/*"]
+    }
+  }
+}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Load(first, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	second := t.TempDir()
+	cfg, err := Load(second, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := cfg.Aliases["~"]; ok {
+		t.Fatalf("unexpected alias leak from previous project: %#v", cfg.Aliases)
+	}
+}
+
+func TestLoadPreservesDisabledSubmodules(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "feod-analyzer.yml"), []byte(`srcDir: src
+submodules:
+  enabled: false
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(dir, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Submodules.Enabled {
+		t.Fatalf("expected submodules to stay disabled: %#v", cfg.Submodules)
+	}
+}
+
 func TestFindConfigWalksParents(t *testing.T) {
 	dir := t.TempDir()
 	project := filepath.Join(dir, "project")

@@ -71,7 +71,7 @@ func Serve(outputDir string, port int) error {
 	}
 
 	server := &http.Server{
-		Addr:              ":" + strconv.Itoa(port),
+		Addr:              serveAddr(port),
 		Handler:           http.FileServer(http.Dir(outputDir)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -83,6 +83,10 @@ func Serve(outputDir string, port int) error {
 
 	fmt.Printf("FEOD Analyzer report: %s\n", url)
 	return server.ListenAndServe()
+}
+
+func serveAddr(port int) string {
+	return "127.0.0.1:" + strconv.Itoa(port)
 }
 
 func findWebDist() string {

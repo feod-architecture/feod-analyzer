@@ -1,12 +1,22 @@
 {
   "name": "@feod-architecture/analyzer",
   "version": "0.1.0",
-  "private": true,
+  "type": "module",
+  "description": "FEOD architecture analyzer CLI with JSON and React report output",
+  "license": "MIT",
+  "author": "FEOD Architecture",
+  "homepage": "https://github.com/feod-architecture/feod-analyzer#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/feod-architecture/feod-analyzer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/feod-architecture/feod-analyzer/issues"
+  },
+  "packageManager": "bun@1.3.6",
   "workspaces": [
     "web"
   ],
-  "license": "MIT",
-  "description": "FEOD architecture analyzer CLI with JSON and React report output",
   "bin": {
     "feod-analyzer": "./index.js"
   },
@@ -23,7 +33,11 @@
     "build": "bun run build:web && bun run build:cli",
     "test:go": "go test ./...",
     "test:web": "bun run --cwd web build",
-    "test": "bun run test:go && bun run test:web"
+    "test": "bun run test:go && bun run test:web",
+    "prepack": "bun run build"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "feod",

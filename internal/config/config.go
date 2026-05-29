@@ -68,7 +68,7 @@ func Load(rootDir string, explicitPath string) (*Config, error) {
 		return nil, fmt.Errorf("resolve root dir: %w", err)
 	}
 
-	cfg := Default
+	cfg := cloneDefault()
 	cfg.RootDir = absRoot
 
 	configPath := explicitPath
@@ -99,6 +99,25 @@ func Load(rootDir string, explicitPath string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+func cloneDefault() Config {
+	cfg := Default
+	cfg.OutputFormats = append([]string(nil), Default.OutputFormats...)
+	cfg.ExcludeDirs = append([]string(nil), Default.ExcludeDirs...)
+	cfg.Aliases = cloneStringMap(Default.Aliases)
+	cfg.Levels = append([]string(nil), Default.Levels...)
+	cfg.Segments = append([]string(nil), Default.Segments...)
+	cfg.IgnoreRules = append([]IgnoreRule(nil), Default.IgnoreRules...)
+	return cfg
+}
+
+func cloneStringMap(source map[string]string) map[string]string {
+	target := make(map[string]string, len(source))
+	for key, value := range source {
+		target[key] = value
+	}
+	return target
 }
 
 func FindConfig(startDir string) (string, error) {
@@ -177,9 +196,6 @@ func (cfg *Config) normalize() {
 	}
 	if len(cfg.Segments) == 0 {
 		cfg.Segments = Default.Segments
-	}
-	if !cfg.Submodules.Enabled && cfg.Submodules.MaxDepth == 0 {
-		cfg.Submodules = Default.Submodules
 	}
 	if cfg.Submodules.MaxDepth == 0 {
 		cfg.Submodules.MaxDepth = Default.Submodules.MaxDepth

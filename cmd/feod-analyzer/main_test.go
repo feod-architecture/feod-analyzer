@@ -29,3 +29,13 @@ func TestAnalyzeCommandFailOnError(t *testing.T) {
 		t.Fatalf("expected exit code 1 for violations, got %d", code)
 	}
 }
+
+func TestAnalyzeCommandRejectsUnknownFormat(t *testing.T) {
+	root := filepath.Join("..", "..", "testdata", "fixtures", "valid")
+	out := filepath.Join(t.TempDir(), "report")
+
+	code := run([]string{"analyze", root, "--out", out, "--formats", "xml", "--fail-on", "error"})
+	if code != 2 {
+		t.Fatalf("expected exit code 2 for invalid format, got %d", code)
+	}
+}

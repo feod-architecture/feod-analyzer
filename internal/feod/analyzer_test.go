@@ -1,6 +1,7 @@
 package feod
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -178,4 +179,100 @@ func TestSubmoduleImportFromOutsideIsError(t *testing.T) {
 		}
 	}
 	t.Fatalf("expected external submodule import violation, got %#v", result.Violations)
+}
+
+func TestAnalyzeRespectsDisabledSubmodules(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "feod-analyzer.yml", `srcDir: src
+aliases:
+  "@": src
+submodules:
+  enabled: false
+`)
+	writeTestFile(t, root, "src/modules/checkout/index.ts", `export { PaymentStep } from "./payment";`)
+	writeTestFile(t, root, "src/modules/checkout/payment/index.ts", `export const PaymentStep = "payment";`)
+
+	cfg, err := config.Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Analyze(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if result.Summary.Submodules != 0 {
+		t.Fatalf("expected disabled submodules to produce no submodule nodes, got %d: %#v", result.Summary.Submodules, result.Nodes)
+	}
+}
+
+func TestAnalyzeUsesSubmoduleMaxDepth(t *testing.T) {
+	root := t.TempDir()
+	writeTestFile(t, root, "feod-analyzer.yml", `srcDir: src
+aliases:
+  "@": src
+submodules:
+  enabled: true
+  maxDepth: 2
+`)
+	writeTestFile(t, root, "src/modules/shop/index.ts", `export { PaymentStep } from "./checkout/payment";`)
+	writeTestFile(t, root, "src/modules/shop/checkout/payment/index.ts", `export { PaymentStep } from "./ui/PaymentStep";`)
+	writeTestFile(t, root, "src/modules/shop/checkout/payment/ui/PaymentStep.ts", `export const PaymentStep = "payment";`)
+
+	cfg, err := config.Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Analyze(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	nodes := map[string]bool{}
+	for _, node := range result.Nodes {
+		nodes[node.ID] = true
+	}
+	if !nodes["submodule:shop/checkout/payment"] {
+		t.Fatalf("expected two-level submodule node, got %#v", result.Nodes)
+	}
+	if nodes["submodule:shop/checkout"] {
+		t.Fatalf("did not expect maxDepth=2 path to collapse to one-level submodule: %#v", result.Nodes)
+	}
+}
+
+func TestIgnoreRulesSuppressMatchingViolations(t *testing.T) {
+	root := filepath.Join("..", "..", "testdata", "fixtures", "violations")
+	cfg, err := config.Load(root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.IgnoreRules = []config.IgnoreRule{{
+		Rule:       RuleDeepImport,
+		ImportPath: "@/modules/user/lib/normalizeUser",
+		Reason:     "covered by legacy migration",
+	}}
+
+	result, err := Analyze(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, violation := range result.Violations {
+		if violation.Rule == RuleDeepImport && violation.ImportPath == "@/modules/user/lib/normalizeUser" {
+			t.Fatalf("expected matching ignore rule to suppress violation: %#v", violation)
+		}
+	}
+}
+
+func writeTestFile(t *testing.T, root string, path string, content string) {
+	t.Helper()
+	target := filepath.Join(root, filepath.FromSlash(path))
+	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 }

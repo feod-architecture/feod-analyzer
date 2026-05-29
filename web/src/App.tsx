@@ -15,7 +15,23 @@ import { ArrowDownToLine, ArrowUpToLine, CircleCheck, ShieldAlert, X } from "luc
 import remarkGfm from "remark-gfm";
 import { Button } from "./components/ui/button";
 import { layoutReportGraph } from "./lib/graph-layout";
-import { formatDate, loadReport } from "./lib/report";
+import {
+  defaultLocale,
+  formatCount,
+  formatDate,
+  formatMoreCount,
+  getMessages,
+  localeOptions,
+  nodeKindLabel,
+  readStoredLocale,
+  severityLabel,
+  statusLabel,
+  violationMessage,
+  violationSuggestion,
+  writeStoredLocale,
+  type Locale,
+} from "./lib/i18n";
+import { loadReport } from "./lib/report";
 import type { FeodReport, ReportEdge, ReportNode, Violation } from "./types";
 
 type EntityNodeData = {
@@ -23,12 +39,14 @@ type EntityNodeData = {
   incoming: number;
   outgoing: number;
   violations: Violation[];
+  locale: Locale;
 };
 
 type LaneNodeData = {
   label: string;
   count: number;
   trackCount: number;
+  locale: Locale;
 };
 
 type HoveredDependency = {
@@ -54,7 +72,18 @@ const edgeTypes = {
 
 const scrollEdgeThreshold = 180;
 
+function dependencyEdgeAtPoint(x: number, y: number) {
+  for (const element of document.elementsFromPoint(x, y)) {
+    const edgeElement = element.closest(".dependency-edge");
+    if (edgeElement) {
+      return edgeElement;
+    }
+  }
+  return null;
+}
+
 export function App() {
+  const [locale, setLocale] = useState<Locale>(readStoredLocale);
   const [report, setReport] = useState<FeodReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,6 +95,7 @@ export function App() {
   const hoverClearTimerRef = useRef<number | null>(null);
   const pointerDownRef = useRef(false);
   const violationsRef = useRef<HTMLElement | null>(null);
+  const messages = getMessages(locale);
 
   const setHoveredDependencyStable = (next: HoveredDependency | null) => {
     if (hoverClearTimerRef.current !== null) {
@@ -89,6 +119,11 @@ export function App() {
       hoverClearTimerRef.current = null;
     }, 90);
   };
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    writeStoredLocale(locale);
+  }, [locale]);
 
   useEffect(() => {
     loadReport()
@@ -176,8 +211,7 @@ export function App() {
       if (pointerDownRef.current) {
         return;
       }
-      const target = event.target;
-      const edgeElement = target instanceof Element ? target.closest(".dependency-edge") : null;
+      const edgeElement = dependencyEdgeAtPoint(event.clientX, event.clientY);
       if (edgeElement?.getAttribute("data-edge-id") !== hoveredDependency.id) {
         clearHoveredDependencySoon();
       }
@@ -200,14 +234,22 @@ export function App() {
         classes.push("is-selected");
       }
       if (!hoveredDependency || node.type === "lane") {
-        return { ...node, className: classes.filter(Boolean).join(" ") };
+        return {
+          ...node,
+          className: classes.filter(Boolean).join(" "),
+          data: { ...(node.data ?? {}), locale },
+        };
       }
       const isRelated = node.id === hoveredDependency.source || node.id === hoveredDependency.target;
       const stateClass = isRelated ? "is-highlighted" : "is-dimmed";
       classes.push(stateClass);
-      return { ...node, className: classes.filter(Boolean).join(" ") };
+      return {
+        ...node,
+        className: classes.filter(Boolean).join(" "),
+        data: { ...(node.data ?? {}), locale },
+      };
     });
-  }, [graphNodes, hoveredDependency, selectedNodeId]);
+  }, [graphNodes, hoveredDependency, locale, selectedNodeId]);
 
   const displayEdges = useMemo(() => {
     return graphEdges.map((edge) => {
@@ -219,6 +261,7 @@ export function App() {
           ...(edge.data ?? {}),
           dimmed: isDimmed,
           highlighted: isActive,
+          locale,
           onHover: (value: ReportEdge | null) => {
             if (pointerDownRef.current) {
               return;
@@ -232,7 +275,7 @@ export function App() {
         },
       };
     });
-  }, [graphEdges, hoveredDependency]);
+  }, [graphEdges, hoveredDependency, locale]);
 
   const selectedNodeDetails = useMemo(() => {
     if (!report || !selectedNodeId) {
@@ -287,15 +330,15 @@ export function App() {
   };
 
   if (loading) {
-    return <StateShell title="FEOD Analyzer" description="Загружаю feod-report.json..." />;
+    return <StateShell title="FEOD Analyzer" description={messages.loadingDescription} />;
   }
 
   if (error || !report) {
     return (
       <StateShell
-        title="Не удалось открыть отчёт"
-        description={error ?? "JSON report is missing."}
-        action="Сгенерируйте отчёт командой feod-analyzer analyze --formats html,json"
+        title={messages.reportOpenErrorTitle}
+        description={error ? `${messages.reportLoadFailed}: ${error}` : messages.missingReportDescription}
+        action={messages.missingReportAction}
       />
     );
   }
@@ -312,9 +355,23 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <span className="run-meta">
-            {report.summary.errors} errors, {report.summary.warnings} warnings, {report.summary.edges} edges
+            {formatCount(locale, report.summary.errors, "error")}, {formatCount(locale, report.summary.warnings, "warning")},{" "}
+            {formatCount(locale, report.summary.edges, "edge")}
           </span>
-          <span className="run-meta">{formatDate(report.meta.generated)}</span>
+          <span className="run-meta">{formatDate(report.meta.generated, locale)}</span>
+          <div className="locale-switcher" role="group" aria-label={messages.languageSwitcher}>
+            {localeOptions.map((option) => (
+              <button
+                className={locale === option.value ? "is-active" : undefined}
+                type="button"
+                aria-pressed={locale === option.value}
+                key={option.value}
+                onClick={() => setLocale(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
           <Button variant="outline" onClick={() => window.open("./feod-report.json", "_blank")}>
             <ArrowDownToLine data-icon="inline-start" />
             JSON
@@ -325,7 +382,7 @@ export function App() {
       <section className="graph-panel">
         <div className="graph-toolbar">
           <div>
-            <h2>Dependency graph</h2>
+            <h2>{messages.dependencyGraph}</h2>
           </div>
         </div>
         <div className="graph-canvas">
@@ -372,6 +429,7 @@ export function App() {
         {selectedNodeDetails && (
           <NodeInspector
             details={selectedNodeDetails}
+            locale={locale}
             onSelectNode={setSelectedNodeId}
             onClose={() => setSelectedNodeId(null)}
           />
@@ -380,19 +438,19 @@ export function App() {
 
       <section className="violations-panel" ref={violationsRef}>
         <div className="violations-header">
-          <h2>Ошибки и предупреждения</h2>
+          <h2>{messages.issuesTitle}</h2>
           <p>
-            {report.summary.errors} errors, {report.summary.warnings} warnings
+            {formatCount(locale, report.summary.errors, "error")}, {formatCount(locale, report.summary.warnings, "warning")}
           </p>
         </div>
-        <ViolationsList violations={report.violations} />
+        <ViolationsList locale={locale} violations={report.violations} />
       </section>
       <Button
         className="scroll-jump-button"
         size="icon"
         variant="outline"
-        aria-label={isAtPageBottom ? "Прокрутить наверх" : "Прокрутить к ошибкам и предупреждениям"}
-        title={isAtPageBottom ? "Наверх" : "К ошибкам и предупреждениям"}
+        aria-label={isAtPageBottom ? messages.graphScrollToTop : messages.graphScrollToIssues}
+        title={isAtPageBottom ? messages.scrollTopTitle : messages.scrollToIssuesTitle}
         onClick={handleScrollJump}
       >
         {isAtPageBottom ? <ArrowUpToLine /> : <ArrowDownToLine />}
@@ -403,6 +461,8 @@ export function App() {
 
 function EntityNode({ data }: NodeProps<EntityNodeData>) {
   const node = data.node;
+  const locale = data.locale ?? defaultLocale;
+  const messages = getMessages(locale);
   const hasErrors = data.violations.some((violation) => violation.severity === "error");
   const hasWarnings = data.violations.some((violation) => violation.severity === "warning");
   const tone = hasErrors ? "error" : hasWarnings ? "warning" : "allowed";
@@ -416,26 +476,27 @@ function EntityNode({ data }: NodeProps<EntityNodeData>) {
       <Handle id="source-left" type="source" position={Position.Left} />
       <Handle id="source-right" type="source" position={Position.Right} />
       <div className="entity-node-header">
-        <span className="entity-kind">{kindLabel(node.kind)}</span>
-        <span>{node.fileCount} files</span>
+        <span className="entity-kind">{nodeKindLabel(locale, node.kind)}</span>
+        <span>{formatCount(locale, node.fileCount, "file")}</span>
       </div>
       <strong>{node.name}</strong>
       <span className="entity-path">{node.path}</span>
       <div className="entity-node-footer">
-        <span>in {data.incoming}</span>
-        <span>out {data.outgoing}</span>
-        {data.violations.length > 0 && <span>{data.violations.length} issues</span>}
+        <span>{messages.incomingShort} {data.incoming}</span>
+        <span>{messages.outgoingShort} {data.outgoing}</span>
+        {data.violations.length > 0 && <span>{formatCount(locale, data.violations.length, "issue")}</span>}
       </div>
     </div>
   );
 }
 
 function LaneNode({ data }: NodeProps<LaneNodeData>) {
+  const locale = data.locale ?? defaultLocale;
   return (
     <div className="lane-node">
       <div className="lane-title">
         <span>{data.label}</span>
-        <small>{data.count} nodes</small>
+        <small>{formatCount(locale, data.count, "node")}</small>
       </div>
       <div className="lane-tracks" style={{ gridTemplateColumns: `repeat(${data.trackCount}, 430px)` }} />
     </div>
@@ -444,6 +505,7 @@ function LaneNode({ data }: NodeProps<LaneNodeData>) {
 
 function NodeInspector({
   details,
+  locale,
   onSelectNode,
   onClose,
 }: {
@@ -457,32 +519,30 @@ function NodeInspector({
     parentModule?: ReportNode;
     statsByNodeId: Map<string, NodeStats>;
   };
+  locale: Locale;
   onSelectNode: (nodeId: string) => void;
   onClose: () => void;
 }) {
   const { node, nodeById, incoming, outgoing, violations, submodules, parentModule, statsByNodeId } = details;
   const sortedViolations = [...violations].sort((a, b) => severityWeight(a.severity) - severityWeight(b.severity));
+  const messages = getMessages(locale);
 
   return (
-    <aside className="node-inspector" aria-label="Информация о блоке">
+    <aside className="node-inspector" aria-label={messages.nodeInspectorLabel}>
       <div className="node-inspector-header">
         <div>
-          <span>{kindLabel(node.kind)}</span>
+          <span>{nodeKindLabel(locale, node.kind)}</span>
           <h3>{node.name}</h3>
           <p>{node.path}</p>
         </div>
-        <Button variant="ghost" size="icon" aria-label="Закрыть информацию о блоке" onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label={messages.closeInspector} onClick={onClose}>
           <X />
         </Button>
       </div>
-      <div className="node-inspector-summary">
-        <span>{outgoing.length} dependencies</span>
-        <span>{incoming.length} dependents</span>
-        <span>{violations.length} issues</span>
-      </div>
-      {(node.kind === "module" || node.kind === "submodule") && <NodeReadmeSection node={node} />}
+      {(node.kind === "module" || node.kind === "submodule") && <NodeReadmeSection locale={locale} node={node} />}
       {node.kind === "module" && (
         <NodeSubmodulesSection
+          locale={locale}
           submodules={submodules}
           statsByNodeId={statsByNodeId}
           onSelectNode={onSelectNode}
@@ -490,29 +550,32 @@ function NodeInspector({
       )}
       {node.kind === "submodule" && parentModule && (
         <NodeParentModuleSection
+          locale={locale}
           parentModule={parentModule}
           stats={statsByNodeId.get(parentModule.id)}
           onSelectNode={onSelectNode}
         />
       )}
       <NodeDependencySection
-        title="Зависимости"
-        empty="Нет исходящих зависимостей."
+        title={messages.dependencies}
+        empty={messages.noOutgoingDependencies}
         edges={outgoing}
         direction="outgoing"
+        locale={locale}
         nodeById={nodeById}
       />
       <NodeDependencySection
-        title="Зависимые"
-        empty="Нет входящих зависимостей."
+        title={messages.dependents}
+        empty={messages.noIncomingDependencies}
         edges={incoming}
         direction="incoming"
+        locale={locale}
         nodeById={nodeById}
       />
       <section className="node-inspector-section">
-        <h4>Ошибки и предупреждения</h4>
+        <h4>{messages.issuesTitle}</h4>
         {sortedViolations.length === 0 ? (
-          <p className="node-inspector-empty">Нарушений не найдено.</p>
+          <p className="node-inspector-empty">{messages.noViolations}</p>
         ) : (
           <ol className="node-violations-list">
             {sortedViolations.map((violation, index) => (
@@ -521,10 +584,10 @@ function NodeInspector({
                 key={`${violation.rule}:${violation.file ?? ""}:${violation.line ?? ""}:${index}`}
               >
                 <div>
-                  <span>{violation.severity}</span>
+                  <span>{severityLabel(locale, violation.severity)}</span>
                   <code>{violation.rule}</code>
                 </div>
-                <p>{violation.message}</p>
+                <p>{violationMessage(locale, violation)}</p>
                 {(violation.file || violation.importPath || violation.from || violation.to) && (
                   <small>
                     {violation.file ? `${violation.file}${violation.line ? `:${violation.line}` : ""}` : ""}
@@ -543,7 +606,8 @@ function NodeInspector({
   );
 }
 
-function NodeReadmeSection({ node }: { node: ReportNode }) {
+function NodeReadmeSection({ locale, node }: { locale: Locale; node: ReportNode }) {
+  const messages = getMessages(locale);
   return (
     <section className="node-inspector-section">
       <h4>README.md</h4>
@@ -553,30 +617,34 @@ function NodeReadmeSection({ node }: { node: ReportNode }) {
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{node.readme.content}</ReactMarkdown>
         </div>
       ) : (
-        <p className="node-inspector-empty">README.md не найден.</p>
+        <p className="node-inspector-empty">{messages.readmeMissing}</p>
       )}
     </section>
   );
 }
 
 function NodeSubmodulesSection({
+  locale,
   submodules,
   statsByNodeId,
   onSelectNode,
 }: {
+  locale: Locale;
   submodules: ReportNode[];
   statsByNodeId: Map<string, NodeStats>;
   onSelectNode: (nodeId: string) => void;
 }) {
+  const messages = getMessages(locale);
   return (
     <section className="node-inspector-section">
-      <h4>Сабмодули</h4>
+      <h4>{messages.submodules}</h4>
       {submodules.length === 0 ? (
-        <p className="node-inspector-empty">Сабмодули не найдены.</p>
+        <p className="node-inspector-empty">{messages.noSubmodules}</p>
       ) : (
         <div className="node-card-list">
           {submodules.map((submodule) => (
             <NodeRelationCard
+              locale={locale}
               key={submodule.id}
               node={submodule}
               stats={statsByNodeId.get(submodule.id)}
@@ -590,33 +658,39 @@ function NodeSubmodulesSection({
 }
 
 function NodeParentModuleSection({
+  locale,
   parentModule,
   stats,
   onSelectNode,
 }: {
+  locale: Locale;
   parentModule: ReportNode;
   stats?: NodeStats;
   onSelectNode: (nodeId: string) => void;
 }) {
+  const messages = getMessages(locale);
   return (
     <section className="node-inspector-section">
-      <h4>Родительский модуль</h4>
+      <h4>{messages.parentModule}</h4>
       <div className="node-card-list">
-        <NodeRelationCard node={parentModule} stats={stats} onSelectNode={onSelectNode} />
+        <NodeRelationCard locale={locale} node={parentModule} stats={stats} onSelectNode={onSelectNode} />
       </div>
     </section>
   );
 }
 
 function NodeRelationCard({
+  locale,
   node,
   stats,
   onSelectNode,
 }: {
+  locale: Locale;
   node: ReportNode;
   stats?: NodeStats;
   onSelectNode: (nodeId: string) => void;
 }) {
+  const messages = getMessages(locale);
   return (
     <button className={`node-relation-card ${node.kind}`} type="button" onClick={() => onSelectNode(node.id)}>
       <div className="node-relation-card-main">
@@ -627,10 +701,10 @@ function NodeRelationCard({
         {node.readme && <span className="node-readme-badge">README</span>}
       </div>
       <div className="node-relation-card-stats">
-        <span>{node.fileCount} files</span>
-        <span>in {stats?.incoming ?? 0}</span>
-        <span>out {stats?.outgoing ?? 0}</span>
-        <span>{stats?.issues ?? 0} issues</span>
+        <span>{formatCount(locale, node.fileCount, "file")}</span>
+        <span>{messages.incomingShort} {stats?.incoming ?? 0}</span>
+        <span>{messages.outgoingShort} {stats?.outgoing ?? 0}</span>
+        <span>{formatCount(locale, stats?.issues ?? 0, "issue")}</span>
       </div>
     </button>
   );
@@ -641,12 +715,14 @@ function NodeDependencySection({
   empty,
   edges,
   direction,
+  locale,
   nodeById,
 }: {
   title: string;
   empty: string;
   edges: ReportEdge[];
   direction: "incoming" | "outgoing";
+  locale: Locale;
   nodeById: Map<string, ReportNode>;
 }) {
   return (
@@ -662,18 +738,18 @@ function NodeDependencySection({
             return (
               <li className={`node-dependency ${edge.status}`} key={edge.id}>
                 <div className="node-dependency-main">
-                  <span>{edge.status}</span>
+                  <span>{statusLabel(locale, edge.status)}</span>
                   <strong>{relatedNode?.name ?? relatedId}</strong>
                 </div>
                 <small>{relatedNode?.path ?? relatedId}</small>
                 <div className="node-dependency-imports">
-                  <span>{edge.imports.length} imports</span>
+                  <span>{formatCount(locale, edge.imports.length, "import")}</span>
                   {edge.imports.slice(0, 3).map((item) => (
                     <code key={`${edge.id}:${item.file}:${item.line}:${item.importPath}`}>
                       {item.file}:{item.line} {item.importPath}
                     </code>
                   ))}
-                  {edge.imports.length > 3 && <small>+{edge.imports.length - 3} more imports</small>}
+                  {edge.imports.length > 3 && <small>{formatMoreCount(locale, edge.imports.length - 3, "import")}</small>}
                 </div>
               </li>
             );
@@ -714,6 +790,7 @@ function DependencyEdge({
   routeCount?: number;
   railY?: number;
   busX?: number;
+  locale?: Locale;
   onHover?: (edge: ReportEdge | null) => void;
   highlighted?: boolean;
   dimmed?: boolean;
@@ -731,13 +808,14 @@ function DependencyEdge({
   const edge = data?.edge;
   const imports = edge?.imports ?? [];
   const violations = data?.violations ?? [];
+  const locale = data?.locale ?? defaultLocale;
+  const messages = getMessages(locale);
   const isActive = Boolean(data?.highlighted);
   const activate = () => {
     if (edge) {
       data?.onHover?.(edge);
     }
   };
-  const deactivate = () => data?.onHover?.(null);
   const [visiblePath, computedLabelX, computedLabelY] =
     data?.route
       ? getRoutedPath({
@@ -760,9 +838,7 @@ function DependencyEdge({
       data-edge-id={id}
       className={`dependency-edge ${data?.dimmed ? "is-dimmed" : ""} ${isActive ? "is-highlighted" : ""}`}
       onPointerEnter={activate}
-      onPointerLeave={deactivate}
       onFocus={activate}
-      onBlur={deactivate}
     >
       <BaseEdge id={id} path={visiblePath} markerEnd={markerEnd} style={style} />
       <path className="edge-hover-path" d={visiblePath} />
@@ -785,20 +861,20 @@ function DependencyEdge({
                 <code>{item.importPath}</code>
               </div>
             ))}
-            {imports.length > 5 && <small>+{imports.length - 5} more imports</small>}
+            {imports.length > 5 && <small>{formatMoreCount(locale, imports.length - 5, "import")}</small>}
             {violations.length > 0 && (
               <div className="edge-tooltip-violations">
-                <span className="edge-tooltip-section-title">Ошибки и предупреждения</span>
+                <span className="edge-tooltip-section-title">{messages.issuesTitle}</span>
                 {violations.slice(0, 4).map((violation, index) => (
                   <div
                     className={`edge-tooltip-violation ${violation.severity}`}
                     key={`${violation.rule}:${violation.file ?? ""}:${violation.line ?? ""}:${index}`}
                   >
                     <div>
-                      <span>{violation.severity}</span>
+                      <span>{severityLabel(locale, violation.severity)}</span>
                       <code>{violation.rule}</code>
                     </div>
-                    <p>{violation.message}</p>
+                    <p>{violationMessage(locale, violation)}</p>
                     {(violation.file || violation.importPath) && (
                       <small>
                         {violation.file ? `${violation.file}${violation.line ? `:${violation.line}` : ""}` : ""}
@@ -808,7 +884,7 @@ function DependencyEdge({
                     )}
                   </div>
                 ))}
-                {violations.length > 4 && <small>+{violations.length - 4} more issues</small>}
+                {violations.length > 4 && <small>{formatMoreCount(locale, violations.length - 4, "issue")}</small>}
               </div>
             )}
           </div>
@@ -886,18 +962,19 @@ function getRoutedPath({
   return [path, (sourceBendX + targetBendX) / 2, safeRailY] as const;
 }
 
-function ViolationsList({ violations }: { violations: Violation[] }) {
+function ViolationsList({ locale, violations }: { locale: Locale; violations: Violation[] }) {
   const pageSize = 6;
   const [page, setPage] = useState(1);
   const pageCount = Math.max(1, Math.ceil(violations.length / pageSize));
   const safePage = Math.min(page, pageCount);
   const visibleViolations = violations.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const messages = getMessages(locale);
 
   if (violations.length === 0) {
     return (
       <div className="empty-list">
         <CircleCheck />
-        <span>Нарушений не найдено.</span>
+        <span>{messages.noViolations}</span>
       </div>
     );
   }
@@ -908,32 +985,32 @@ function ViolationsList({ violations }: { violations: Violation[] }) {
         {visibleViolations.map((violation, index) => (
           <li className={`violation-item ${violation.severity}`} key={`${violation.rule}-${safePage}-${index}`}>
             <div className="violation-main">
-              <span className="severity">{violation.severity}</span>
+              <span className="severity">{severityLabel(locale, violation.severity)}</span>
               <code>{violation.rule}</code>
               <span className="location">
                 {violation.file ? `${violation.file}${violation.line ? `:${violation.line}` : ""}` : violation.from}
               </span>
             </div>
-            <p>{violation.message}</p>
+            <p>{violationMessage(locale, violation)}</p>
             {violation.importPath && <code className="import-path">{violation.importPath}</code>}
-            {violation.suggestion && <small>{violation.suggestion}</small>}
+            {violation.suggestion && <small>{violationSuggestion(locale, violation)}</small>}
           </li>
         ))}
       </ol>
       {pageCount > 1 && (
-        <nav className="pagination" aria-label="Violations pagination">
+        <nav className="pagination" aria-label={messages.paginationLabel}>
           <Button variant="outline" disabled={safePage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
-            Prev
+            {messages.previous}
           </Button>
           <span>
-            Page {safePage} / {pageCount}
+            {messages.page} {safePage} / {pageCount}
           </span>
           <Button
             variant="outline"
             disabled={safePage === pageCount}
             onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
           >
-            Next
+            {messages.next}
           </Button>
         </nav>
       )}
@@ -952,15 +1029,4 @@ function StateShell({ title, description, action }: { title: string; description
       </div>
     </main>
   );
-}
-
-function kindLabel(kind: string) {
-  switch (kind) {
-    case "commonEntity":
-      return "common";
-    case "submodule":
-      return "submodule";
-    default:
-      return kind;
-  }
 }

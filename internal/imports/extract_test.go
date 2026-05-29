@@ -34,6 +34,26 @@ export type { PaymentProps } from "@/modules/checkout";
 	}
 }
 
+func TestExtractIgnoresCommentsAndStringLiterals(t *testing.T) {
+	source := []byte(`
+// import { Commented } from "@/modules/commented";
+/*
+export { BlockCommented } from "@/modules/block-commented";
+*/
+const sample = "import { InString } from '@/modules/string-literal'";
+const template = ` + "`require('@/modules/template-literal')`" + `;
+import { Real } from "@/modules/real";
+`)
+
+	statements := Extract(source)
+	if len(statements) != 1 {
+		t.Fatalf("expected only one real import, got %#v", statements)
+	}
+	if statements[0].Path != "@/modules/real" {
+		t.Fatalf("expected real import, got %#v", statements[0])
+	}
+}
+
 func TestExtractStarExports(t *testing.T) {
 	source := []byte(`
 export * from "./ui/UserCard";

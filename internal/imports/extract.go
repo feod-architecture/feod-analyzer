@@ -54,12 +54,16 @@ var patterns = []pattern{
 
 func Extract(source []byte) []Statement {
 	text := string(source)
+	ignored := ignoredOffsets(text)
 	statements := []Statement{}
 	seen := map[string]bool{}
 
 	for _, p := range patterns {
 		matches := p.re.FindAllStringSubmatchIndex(text, -1)
 		for _, match := range matches {
+			if ignored[match[0]] {
+				continue
+			}
 			pathStart := match[p.pathIndex*2]
 			pathEnd := match[p.pathIndex*2+1]
 			if pathStart < 0 || pathEnd < 0 {
@@ -99,11 +103,15 @@ func Extract(source []byte) []Statement {
 
 func ExtractStarExports(source []byte) []Statement {
 	text := string(source)
+	ignored := ignoredOffsets(text)
 	re := regexp.MustCompile(`(?ms)\bexport\s+(type\s+)?\*\s+from\s*["']([^"']+)["']`)
 	matches := re.FindAllStringSubmatchIndex(text, -1)
 	result := []Statement{}
 
 	for _, match := range matches {
+		if ignored[match[0]] {
+			continue
+		}
 		pathStart := match[4]
 		pathEnd := match[5]
 		if pathStart < 0 || pathEnd < 0 {
@@ -124,11 +132,15 @@ func ExtractStarExports(source []byte) []Statement {
 
 func ExtractNamedExports(source []byte) []Statement {
 	text := string(source)
+	ignored := ignoredOffsets(text)
 	re := regexp.MustCompile(`(?ms)\bexport\s+(type\s+)?(?:\{[^}]*\}|[A-Za-z0-9_$]+\s*\{[^}]*\})\s+from\s*["']([^"']+)["']`)
 	matches := re.FindAllStringSubmatchIndex(text, -1)
 	result := []Statement{}
 
 	for _, match := range matches {
+		if ignored[match[0]] {
+			continue
+		}
 		pathStart := match[4]
 		pathEnd := match[5]
 		if pathStart < 0 || pathEnd < 0 {
@@ -152,4 +164,68 @@ func lineAtOffset(text string, offset int) int {
 		return 1
 	}
 	return strings.Count(text[:offset], "\n") + 1
+}
+
+func ignoredOffsets(text string) []bool {
+	ignored := make([]bool, len(text))
+	for i := 0; i < len(text); {
+		ch := text[i]
+		next := byte(0)
+		if i+1 < len(text) {
+			next = text[i+1]
+		}
+
+		if ch == '/' && next == '/' {
+			for i < len(text) && text[i] != '\n' {
+				ignored[i] = true
+				i++
+			}
+			continue
+		}
+
+		if ch == '/' && next == '*' {
+			ignored[i] = true
+			ignored[i+1] = true
+			i += 2
+			for i < len(text) {
+				ignored[i] = true
+				if i+1 < len(text) && text[i] == '*' && text[i+1] == '/' {
+					ignored[i+1] = true
+					i += 2
+					break
+				}
+				i++
+			}
+			continue
+		}
+
+		if ch == '"' || ch == '\'' || ch == '`' {
+			quote := ch
+			escaped := false
+			ignored[i] = true
+			i++
+			for i < len(text) {
+				ignored[i] = true
+				if escaped {
+					escaped = false
+					i++
+					continue
+				}
+				if text[i] == '\\' {
+					escaped = true
+					i++
+					continue
+				}
+				if text[i] == quote {
+					i++
+					break
+				}
+				i++
+			}
+			continue
+		}
+
+		i++
+	}
+	return ignored
 }

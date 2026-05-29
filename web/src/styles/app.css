@@ -114,6 +114,8 @@ code {
 
 .topbar-actions {
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12px;
 }
 
@@ -554,24 +556,6 @@ code {
   white-space: nowrap;
 }
 
-.node-inspector-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.node-inspector-summary span {
-  min-width: 0;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-soft);
-  color: #334155;
-  font-size: 12px;
-  font-weight: 650;
-  text-align: center;
-}
-
 .node-inspector-section {
   display: grid;
   gap: 8px;
@@ -968,6 +952,44 @@ code {
   opacity: 0.48;
 }
 
+.locale-switcher {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.locale-switcher button {
+  min-width: 38px;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.locale-switcher button:hover,
+.locale-switcher button:focus-visible {
+  color: var(--foreground);
+  background: #e2e8f0;
+  outline: none;
+}
+
+.locale-switcher button.is-active {
+  color: var(--foreground);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
 .react-flow__node-lane {
   pointer-events: none;
 }
@@ -1017,7 +1039,4 @@ code {
     width: auto;
   }
 
-  .node-inspector-summary {
-    grid-template-columns: 1fr;
-  }
 }

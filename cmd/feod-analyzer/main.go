@@ -70,8 +70,10 @@ func runAnalyze(args []string) int {
 	if *formatsValue != "" {
 		formats = parseFormats(*formatsValue)
 	}
-	if len(formats) == 0 {
-		formats = []string{"html", "json"}
+	formats, err = validateFormats(formats)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid --formats value: %v\n", err)
+		return 2
 	}
 
 	result, err := feod.Analyze(cfg)
@@ -155,6 +157,32 @@ func parseFormats(value string) []string {
 		}
 	}
 	return formats
+}
+
+func validateFormats(formats []string) ([]string, error) {
+	allowed := map[string]bool{
+		"html": true,
+		"json": true,
+	}
+	seen := map[string]bool{}
+	normalized := make([]string, 0, len(formats))
+	for _, format := range formats {
+		format = strings.ToLower(strings.TrimSpace(format))
+		if format == "" {
+			continue
+		}
+		if !allowed[format] {
+			return nil, fmt.Errorf("%s (allowed: html,json)", format)
+		}
+		if !seen[format] {
+			seen[format] = true
+			normalized = append(normalized, format)
+		}
+	}
+	if len(normalized) == 0 {
+		return []string{"html", "json"}, nil
+	}
+	return normalized, nil
 }
 
 func printSummary(result *report.Report, outputDir string) {
