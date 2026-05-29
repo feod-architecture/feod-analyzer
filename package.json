@@ -13,7 +13,6 @@
   "bugs": {
     "url": "https://github.com/feod-architecture/feod-analyzer/issues"
   },
-  "packageManager": "bun@1.3.6",
   "workspaces": [
     "web"
   ],
@@ -28,13 +27,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "build:web": "bun run --cwd web build",
+    "build:web": "node scripts/run-web-script.mjs build",
     "build:cli": "go build -o bin/feod-analyzer ./cmd/feod-analyzer",
-    "build": "bun run build:web && bun run build:cli",
+    "build": "node scripts/run-web-script.mjs build && go build -o bin/feod-analyzer ./cmd/feod-analyzer",
     "test:go": "go test ./...",
-    "test:web": "bun run --cwd web build",
-    "test": "bun run test:go && bun run test:web",
-    "prepack": "bun run build"
+    "test:web": "node scripts/run-web-script.mjs build",
+    "test": "go test ./... && node scripts/run-web-script.mjs build",
+    "prepack": "node scripts/run-web-script.mjs build && go build -o bin/feod-analyzer ./cmd/feod-analyzer"
   },
   "publishConfig": {
     "access": "public"

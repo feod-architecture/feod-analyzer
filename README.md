@@ -10,6 +10,8 @@ Use the package as a CLI:
 
 ```bash
 bunx @feod-architecture/analyzer analyze ./src --out ./dist/feod --formats html,json
+npx @feod-architecture/analyzer analyze ./src --out ./dist/feod --formats html,json
+pnpm dlx @feod-architecture/analyzer analyze ./src --out ./dist/feod --formats html,json
 ```
 
 For local development from the repository:
@@ -17,6 +19,10 @@ For local development from the repository:
 ```bash
 bun install
 bun run build
+npm install
+npm run build
+pnpm install
+pnpm run build
 ./bin/feod-analyzer analyze ./testdata/fixtures/showcase --out ./dist/showcase-report --formats html,json
 ```
 
@@ -108,10 +114,18 @@ The analyzer supports code review and CI. It does not replace architectural deci
 
 ## Development
 
+The repository supports Bun, npm, and pnpm for local build and test commands. Go 1.22 and Node.js 20 or newer are required.
+
 ```bash
 bun install
 bun run test
 bun run build
+npm install
+npm run test
+npm run build
+pnpm install
+pnpm run test
+pnpm run build
 ```
 
 Useful commands:
@@ -121,6 +135,14 @@ bun run test:go
 bun run test:web
 bun run build:cli
 bun run build:web
+npm run test:go
+npm run test:web
+npm run build:cli
+npm run build:web
+pnpm run test:go
+pnpm run test:web
+pnpm run build:cli
+pnpm run build:web
 ```
 
 Smoke test:
@@ -133,18 +155,20 @@ Package dry run:
 
 ```bash
 bun pm pack --dry-run
+npm pack --dry-run
+pnpm pack --dry-run
 ```
 
 The package includes the Node launcher, the compiled Go binary, the static web report, README, and LICENSE.
 
 ## Release
 
-Before publishing a release:
+Before publishing a release, use one package manager consistently for the command sequence:
 
-1. Run `bun run test`.
-2. Run `bun run build`.
+1. Run `bun run test`, `npm run test`, or `pnpm run test`.
+2. Run `bun run build`, `npm run build`, or `pnpm run build`.
 3. Run the smoke test against `testdata/fixtures/showcase`.
-4. Run `bun pm pack --dry-run` and check the file list.
+4. Run `bun pm pack --dry-run`, `npm pack --dry-run`, or `pnpm pack --dry-run` and check the file list.
 5. Publish only after the package contains `index.js`, `bin/feod-analyzer`, `web/dist`, `README.md`, and `LICENSE`.
 
 ## License
