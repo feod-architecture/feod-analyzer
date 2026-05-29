@@ -1,0 +1,8 @@
+bin/
+dist/
+coverage/
+node_modules/
+web/dist/
+*.test
+*.tsbuildinfo
+.DS_Store

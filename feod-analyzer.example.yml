@@ -1,0 +1,33 @@
+srcDir: src
+outputDir: dist/feod
+outputFormats:
+  - html
+  - json
+excludeDirs:
+  - node_modules
+  - .git
+  - dist
+  - build
+  - coverage
+aliases:
+  "@": src
+tsconfig: tsconfig.json
+levels:
+  - app
+  - pages
+  - modules
+  - common
+  - global
+segments:
+  - ui
+  - model
+  - api
+  - lib
+  - config
+  - types
+  - test
+  - tests
+submodules:
+  enabled: true
+  maxDepth: 2
+ignoreRules: []

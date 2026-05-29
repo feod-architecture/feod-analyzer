@@ -1,0 +1,20 @@
+srcDir: src
+aliases:
+  "@": src
+excludeDirs:
+  - node_modules
+  - dist
+  - build
+  - coverage
+segments:
+  - ui
+  - model
+  - api
+  - lib
+  - config
+  - types
+  - test
+  - tests
+submodules:
+  enabled: true
+  maxDepth: 2

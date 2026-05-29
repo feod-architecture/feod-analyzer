@@ -1,0 +1,5 @@
+srcDir: src
+outputDir: dist/feod
+outputFormats: [json]
+aliases:
+  "@": src
