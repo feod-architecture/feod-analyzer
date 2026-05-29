@@ -17,7 +17,7 @@
     "web"
   ],
   "bin": {
-    "feod-analyzer": "./index.js"
+    "feod-analyzer": "index.js"
   },
   "files": [
     "bin",
